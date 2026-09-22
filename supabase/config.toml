@@ -1,0 +1,17 @@
+project_id = "your_supabase_project_id"
+
+[auth.rate_limit]
+email_sent = 300
+token_verifications = 300
+sign_ins = 300
+token_refreshes = 1500
+anonymous_users = 300
+
+[auth.smtp]
+enabled = true
+host = "smtp.resend.com"
+port = 465
+user = "resend"
+pass = "env(RESEND_API_KEY)"
+admin_email = "onboarding@resend.dev"
+sender_name = "Research Connect"
