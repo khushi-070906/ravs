@@ -127,14 +127,14 @@ function AuthPage() {
       if (error) {
         setBusy(false);
         const errMsg = error.message.toLowerCase();
+        // Only treat this as "account already exists" when Supabase actually
+        // says so — matching on bare HTTP status (400/422/429) was catching
+        // *every* signup error (weak password, invalid email, etc.) and
+        // misreporting it as "already registered".
         const isUserExists =
-          error.status === 400 ||
-          error.status === 422 ||
-          error.status === 429 ||
+          error.code === "user_already_exists" ||
           errMsg.includes("already registered") ||
-          errMsg.includes("already exists") ||
-          errMsg.includes("rate limit") ||
-          errMsg.includes("too many");
+          errMsg.includes("already exists");
 
         if (isUserExists) {
           const { error: signInErr } = await withTimeout(
