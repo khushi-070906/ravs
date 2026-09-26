@@ -8,12 +8,222 @@ export type Database = {
   };
   public: {
     Tables: {
+      departments: {
+        Row: {
+          id: string;
+          name: string;
+          code: string | null;
+          head_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          code?: string | null;
+          head_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          code?: string | null;
+          head_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      labs: {
+        Row: {
+          id: string;
+          name: string;
+          department_id: string | null;
+          location: string | null;
+          incharge_id: string | null;
+          capacity: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          department_id?: string | null;
+          location?: string | null;
+          incharge_id?: string | null;
+          capacity?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          department_id?: string | null;
+          location?: string | null;
+          incharge_id?: string | null;
+          capacity?: number | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      institution_settings: {
+        Row: {
+          id: boolean;
+          name: string;
+          short_name: string | null;
+          academic_year: string | null;
+          semester_label: string | null;
+          semester_start: string | null;
+          semester_end: string | null;
+          min_attendance_pct: number;
+          timezone: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: boolean;
+          name?: string;
+          short_name?: string | null;
+          academic_year?: string | null;
+          semester_label?: string | null;
+          semester_start?: string | null;
+          semester_end?: string | null;
+          min_attendance_pct?: number;
+          timezone?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: boolean;
+          name?: string;
+          short_name?: string | null;
+          academic_year?: string | null;
+          semester_label?: string | null;
+          semester_start?: string | null;
+          semester_end?: string | null;
+          min_attendance_pct?: number;
+          timezone?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      schedule_slots: {
+        Row: {
+          id: string;
+          project_id: string;
+          title: string;
+          kind: string;
+          starts_at: string;
+          ends_at: string;
+          location: string | null;
+          lab_id: string | null;
+          notes: string | null;
+          series_id: string | null;
+          created_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_id: string;
+          title: string;
+          kind?: string;
+          starts_at: string;
+          ends_at: string;
+          location?: string | null;
+          lab_id?: string | null;
+          notes?: string | null;
+          series_id?: string | null;
+          created_by?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          project_id?: string;
+          title?: string;
+          kind?: string;
+          starts_at?: string;
+          ends_at?: string;
+          location?: string | null;
+          lab_id?: string | null;
+          notes?: string | null;
+          series_id?: string | null;
+          created_by?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "schedule_slots_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      audit_log: {
+        Row: {
+          id: number;
+          at: string;
+          actor_id: string | null;
+          action: string;
+          entity: string;
+          entity_id: string | null;
+          details: Json;
+        };
+        Insert: {
+          id?: number;
+          at?: string;
+          actor_id?: string | null;
+          action: string;
+          entity: string;
+          entity_id?: string | null;
+          details?: Json;
+        };
+        Update: {
+          id?: number;
+          at?: string;
+          actor_id?: string | null;
+          action?: string;
+          entity?: string;
+          entity_id?: string | null;
+          details?: Json;
+        };
+        Relationships: [];
+      };
+      notifications: {
+        Row: {
+          id: string;
+          user_id: string;
+          kind: string;
+          title: string;
+          body: string | null;
+          link: string | null;
+          read_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          kind: string;
+          title: string;
+          body?: string | null;
+          link?: string | null;
+          read_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          kind?: string;
+          title?: string;
+          body?: string | null;
+          link?: string | null;
+          read_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           avatar_url: string | null;
           college_id: string | null;
           created_at: string;
           department: string | null;
+          department_id: string | null;
           full_name: string;
           id: string;
           phone: string | null;
@@ -24,6 +234,7 @@ export type Database = {
           college_id?: string | null;
           created_at?: string;
           department?: string | null;
+          department_id?: string | null;
           full_name?: string;
           id: string;
           phone?: string | null;
@@ -34,6 +245,7 @@ export type Database = {
           college_id?: string | null;
           created_at?: string;
           department?: string | null;
+          department_id?: string | null;
           full_name?: string;
           id?: string;
           phone?: string | null;
@@ -84,6 +296,13 @@ export type Database = {
           status: Database["public"]["Enums"]["project_status"];
           title: string;
           updated_at: string;
+          department_id: string | null;
+          lab_id: string | null;
+          co_supervisor_id: string | null;
+          domain: string | null;
+          keywords: string[];
+          funding_source: string | null;
+          max_members: number | null;
         };
         Insert: {
           created_at?: string;
@@ -98,6 +317,13 @@ export type Database = {
           status?: Database["public"]["Enums"]["project_status"];
           title: string;
           updated_at?: string;
+          department_id?: string | null;
+          lab_id?: string | null;
+          co_supervisor_id?: string | null;
+          domain?: string | null;
+          keywords?: string[];
+          funding_source?: string | null;
+          max_members?: number | null;
         };
         Update: {
           created_at?: string;
@@ -112,6 +338,13 @@ export type Database = {
           status?: Database["public"]["Enums"]["project_status"];
           title?: string;
           updated_at?: string;
+          department_id?: string | null;
+          lab_id?: string | null;
+          co_supervisor_id?: string | null;
+          domain?: string | null;
+          keywords?: string[];
+          funding_source?: string | null;
+          max_members?: number | null;
         };
         Relationships: [];
       };
@@ -253,6 +486,37 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      admin_list_users: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          id: string;
+          email: string;
+          full_name: string;
+          college_id: string | null;
+          role: Database["public"]["Enums"]["app_role"];
+          department_id: string | null;
+          created_at: string;
+          last_sign_in_at: string | null;
+        }[];
+      };
+      admin_faculty_allowlist: {
+        Args: { add_email?: string; remove_email?: string };
+        Returns: string[];
+      };
+      attendance_recommendations: {
+        Args: { p_project?: string };
+        Returns: {
+          student_id: string;
+          project_id: string;
+          verified_minutes: number;
+          pending_minutes: number;
+          required_hours: number;
+          progress_pct: number;
+          expected_pct: number | null;
+          recommendation: string;
+          reason: string;
+        }[];
+      };
       admin_update_user_role: {
         Args: {
           target_user_id: string;

@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { GraduationCap, BookOpen, ShieldCheck } from "lucide-react";
+import { GraduationCap, BookOpen, ShieldCheck, FlaskConical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type AppRole } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -237,81 +237,105 @@ function AuthPage() {
     toast.info(`Prefilled credentials for ${role}`);
   }
 
+  const roles: { key: AppRole; label: string; icon: typeof GraduationCap }[] = [
+    { key: "student", label: "Student", icon: GraduationCap },
+    { key: "faculty", label: "Faculty", icon: BookOpen },
+    { key: "admin", label: "Admin", icon: ShieldCheck },
+  ];
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
-      <div className="w-full max-w-lg space-y-6">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold tracking-tight">RAVS</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Research Attendance &amp; Verification System
-          </p>
+    <div className="grid min-h-screen bg-background lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+      {/* Brand panel */}
+      <aside className="relative hidden flex-col justify-between overflow-hidden bg-sidebar p-12 text-sidebar-foreground lg:flex">
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-9 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
+            <FlaskConical className="size-4" />
+          </span>
+          <span className="font-display text-xl font-semibold">RAVS</span>
         </div>
 
-        {/* Top Role Selector */}
-        <div className="rounded-xl border border-border bg-card p-2 shadow-xs">
-          <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Select Your Role
-          </p>
-          <div className="grid grid-cols-3 gap-1.5">
-            <button
-              type="button"
-              onClick={() => setSelectedRole("student")}
-              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
-                selectedRole === "student"
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <GraduationCap className="size-4" />
-              <span>Student</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedRole("faculty")}
-              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
-                selectedRole === "faculty"
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <BookOpen className="size-4" />
-              <span>Faculty</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedRole("admin")}
-              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
-                selectedRole === "admin"
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <ShieldCheck className="size-4" />
-              <span>Admin</span>
-            </button>
-          </div>
+        <div className="max-w-md">
+          <h1 className="font-display text-4xl leading-[1.1] text-sidebar-primary">
+            Research hours that faculty can actually verify.
+          </h1>
+          <ol className="mt-10 space-y-5 text-sm">
+            {[
+              ["Check in", "Start a session on the event you're working on."],
+              ["Check out", "Write what you did. The server records the time."],
+              ["Get verified", "Faculty approve the session and it counts toward attendance."],
+            ].map(([t, d], i) => (
+              <li key={t} className="flex gap-4">
+                <span className="tnum flex size-7 shrink-0 items-center justify-center rounded-full border border-sidebar-border text-xs">
+                  {i + 1}
+                </span>
+                <span>
+                  <span className="block font-medium text-sidebar-primary">{t}</span>
+                  <span className="text-sidebar-foreground/70">{d}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
         </div>
 
-        {/* Main Auth Card */}
-        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-          <div className="mb-6 rounded-lg bg-muted/60 p-3 text-center">
-            <h2 className="text-base font-semibold text-foreground">{activeRole.title}</h2>
-            <p className="text-xs text-muted-foreground">{activeRole.subtitle}</p>
+        <p className="text-xs text-sidebar-foreground/50">
+          Research Attendance &amp; Verification System
+        </p>
+      </aside>
+
+      {/* Form */}
+      <main className="flex items-center justify-center px-4 py-10 sm:px-8">
+        <div className="w-full max-w-md">
+          <div className="mb-8 flex items-center gap-2.5 lg:hidden">
+            <span className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <FlaskConical className="size-4" />
+            </span>
+            <span className="font-display text-lg font-semibold">RAVS</span>
           </div>
 
-          <Tabs defaultValue="signin">
+          <h2 className="font-display text-2xl">{activeRole.title}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{activeRole.subtitle}</p>
+
+          <div
+            role="radiogroup"
+            aria-label="Portal"
+            className="mt-6 grid grid-cols-3 gap-1 rounded-lg bg-secondary p-1"
+          >
+            {roles.map((r) => {
+              const on = selectedRole === r.key;
+              return (
+                <button
+                  key={r.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setSelectedRole(r.key)}
+                  className={`flex items-center justify-center gap-1.5 rounded-md py-2 text-sm transition-colors ${
+                    on
+                      ? "bg-card font-medium text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <r.icon className="size-4" />
+                  {r.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <Tabs defaultValue="signin" className="mt-8">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="signin">Sign in</TabsTrigger>
               <TabsTrigger value="signup">Create account</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="signin" className="mt-5">
+            <TabsContent value="signin" className="mt-6">
               <form onSubmit={signIn} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signin-email">Email</Label>
                   <Input
                     id="signin-email"
                     type="email"
+                    autoComplete="email"
                     required
                     placeholder={`${selectedRole}@institution.edu`}
                     value={email}
@@ -323,25 +347,26 @@ function AuthPage() {
                   <Input
                     id="signin-password"
                     type="password"
+                    autoComplete="current-password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={busy}>
-                  Sign in as {selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)}
+                <Button type="submit" className="h-10 w-full" disabled={busy}>
+                  {busy ? "Signing in…" : `Sign in as ${cap(selectedRole)}`}
                 </Button>
               </form>
             </TabsContent>
 
-            <TabsContent value="signup" className="mt-5">
+            <TabsContent value="signup" className="mt-6">
               <form onSubmit={signUp} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signup-name">Full name</Label>
                   <Input
                     id="signup-name"
                     required
-                    placeholder="Prof. / Dr. / Student Name"
+                    autoComplete="name"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                   />
@@ -357,10 +382,11 @@ function AuthPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-email">Institutional Email</Label>
+                  <Label htmlFor="signup-email">Institutional email</Label>
                   <Input
                     id="signup-email"
                     type="email"
+                    autoComplete="email"
                     required
                     placeholder={`${selectedRole}@institution.edu`}
                     value={email}
@@ -372,54 +398,46 @@ function AuthPage() {
                   <Input
                     id="signup-password"
                     type="password"
+                    autoComplete="new-password"
                     required
                     minLength={6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
+                  <p className="text-xs text-muted-foreground">At least 6 characters.</p>
                 </div>
-                <Button type="submit" className="w-full" disabled={busy}>
-                  Register as {selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)}
+                {selectedRole !== "student" && (
+                  <p className="rounded-md border border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
+                    {cap(selectedRole)} access is granted by an administrator. Until then your
+                    account works as a student account.
+                  </p>
+                )}
+                <Button type="submit" className="h-10 w-full" disabled={busy}>
+                  {busy ? "Creating account…" : `Create ${selectedRole} account`}
                 </Button>
               </form>
             </TabsContent>
           </Tabs>
-        </div>
 
-        {/* Quick Demo Pre-fills */}
-        <div className="rounded-lg border border-dashed border-border p-3 text-center">
-          <p className="mb-2 text-xs text-muted-foreground">Quick Test Fill Credentials:</p>
-          <div className="flex flex-wrap justify-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="text-xs"
-              onClick={() => prefillDemo("student")}
-            >
-              <GraduationCap className="mr-1 size-3" /> Student
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="text-xs"
-              onClick={() => prefillDemo("faculty")}
-            >
-              <BookOpen className="mr-1 size-3" /> Faculty
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="text-xs"
-              onClick={() => prefillDemo("admin")}
-            >
-              <ShieldCheck className="mr-1 size-3" /> Admin
-            </Button>
+          <div className="mt-10 border-t border-border pt-5">
+            <p className="text-xs text-muted-foreground">Fill a demo account</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {roles.map((r) => (
+                <Button
+                  key={r.key}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => prefillDemo(r.key)}
+                >
+                  <r.icon className="size-3.5" /> {r.label}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

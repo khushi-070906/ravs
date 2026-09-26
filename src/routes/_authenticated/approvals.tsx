@@ -1,21 +1,23 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ShieldCheck, CheckCircle2, Clock } from "lucide-react";
+import { ShieldCheck, CheckCircle2, Check, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { attachStudentNames } from "@/lib/people";
 import { formatMinutes } from "@/lib/session-utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { PageHeader } from "@/components/research";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/approvals")({
   head: () => ({
     meta: [
-      { title: "Approval queue — RAVS" },
+      { title: "Review queue — RAVS" },
       { name: "description", content: "Review and verify student research sessions." },
-      { property: "og:title", content: "Approval queue — RAVS" },
+      { property: "og:title", content: "Review queue — RAVS" },
       { property: "og:description", content: "Approve or reject submitted work sessions." },
     ],
   }),
@@ -26,6 +28,7 @@ function Approvals() {
   const { user, role } = useAuth();
   const qc = useQueryClient();
   const [remarks, setRemarks] = useState<Record<string, string>>({});
+  const [eventFilter, setEventFilter] = useState("all");
   const isFaculty = role === "faculty";
   const isAdmin = role === "admin";
 
@@ -50,7 +53,7 @@ function Approvals() {
         throw new Error("Only faculty members have authority to approve or reject sessions");
       }
       const note = (remarks[id] ?? "").trim();
-      if (!approved && !note) throw new Error("Add a remark explaining the rejection");
+      if (!approved && !note) throw new Error("Add a remark so the student knows what to fix");
       const { error } = await supabase
         .from("work_sessions")
         .update({
@@ -63,7 +66,7 @@ function Approvals() {
       if (error) throw error;
     },
     onSuccess: (_d, v) => {
-      toast.success(v.approved ? "Session approved" : "Session rejected");
+      toast.success(v.approved ? "Session verified" : "Session returned to student");
       qc.invalidateQueries();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -85,127 +88,171 @@ function Approvals() {
     );
   }
 
+  const all = sessions ?? [];
+  const events = [
+    ...new Map(all.map((s) => [s.project_id, s.projects?.title ?? "Event"])).entries(),
+  ];
+  const shown = eventFilter === "all" ? all : all.filter((s) => s.project_id === eventFilter);
+  const waitedDays = (d: string | null) =>
+    d ? Math.floor((Date.now() - new Date(d).getTime()) / 86400000) : 0;
+
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">Approval Queue</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {isFaculty
-                ? "Global Review Queue: Verify student research sessions across all events."
-                : "Institutional Review Queue: Global oversight of all pending student submissions."}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-full border border-border bg-secondary px-3 py-1 text-xs font-semibold uppercase tracking-wider text-secondary-foreground">
-              Role: {role}
-            </span>
-          </div>
-        </div>
+      <PageHeader
+        title="Review queue"
+        intro={
+          isFaculty
+            ? "Read each log entry and verify the time, or return it with a remark. Oldest first."
+            : "Sessions waiting for faculty. Admins can read the queue but not verify."
+        }
+      />
 
-        {/* Read-Only Banner for Admin */}
-        {isAdmin && (
-          <div className="mt-4 flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-amber-600 dark:text-amber-400">
-            <ShieldCheck className="size-5 shrink-0" />
-            <div className="text-sm">
-              <span className="font-semibold">Read-Only Oversight:</span> Admins can view all
-              student submissions globally, but approval and rejection authority is reserved
-              exclusively for Faculty.
-            </div>
-          </div>
-        )}
-      </div>
+      {isAdmin && (
+        <p className="flex items-start gap-3 rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
+          <ShieldCheck className="mt-0.5 size-4 shrink-0 text-foreground" />
+          Read-only. Only faculty can verify or return sessions.
+        </p>
+      )}
+
+      {events.length > 1 && (
+        <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Filter by event">
+          {[["all", "All events"] as [string, string], ...events].map(([id, title]) => {
+            const n = id === "all" ? all.length : all.filter((s) => s.project_id === id).length;
+            return (
+              <button
+                key={id}
+                role="tab"
+                aria-selected={eventFilter === id}
+                onClick={() => setEventFilter(id)}
+                className={cn(
+                  "whitespace-nowrap rounded-md px-3 py-1.5 text-sm",
+                  eventFilter === id
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                )}
+              >
+                {title} <span className="tnum opacity-70">{n}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {isLoading && <p className="text-sm text-muted-foreground">Loading queue…</p>}
 
-      {sessions && sessions.length === 0 && (
-        <div className="rounded-xl border border-dashed border-border p-12 text-center">
-          <CheckCircle2 className="mx-auto size-10 text-emerald-500" />
-          <p className="mt-3 text-base font-medium">All caught up!</p>
+      {sessions && all.length === 0 && (
+        <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center">
+          <CheckCircle2 className="mx-auto size-8 text-success" />
+          <p className="mt-3 font-medium">Nothing to review</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            There are currently no pending student sessions awaiting review.
+            New sessions appear here when students check out.
           </p>
         </div>
       )}
 
       <ul className="space-y-4">
-        {(sessions ?? []).map((s) => (
-          <li key={s.id} className="rounded-xl border border-border bg-card p-5 shadow-xs">
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h2 className="text-lg font-semibold">{s.student_name}</h2>
-              {s.student_college_id && (
-                <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                  {s.student_college_id}
-                </span>
-              )}
-              <span className="ml-auto text-sm font-medium text-primary">
-                {s.projects?.title ?? "General Event"}
-              </span>
-            </div>
-
-            <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-              <Clock className="size-3.5" />
-              <span>
-                {new Date(s.check_in_at).toLocaleString()} →{" "}
-                {s.check_out_at ? new Date(s.check_out_at).toLocaleTimeString() : "—"} ·{" "}
-                <strong className="text-foreground">{formatMinutes(s.duration_minutes)}</strong>
-              </span>
-            </p>
-
-            {s.notes && (
-              <p className="mt-3 text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">Objective:</span> {s.notes}
-              </p>
-            )}
-            {s.summary && (
-              <div className="mt-2 rounded-md bg-muted/40 p-3 text-sm whitespace-pre-line text-foreground">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block mb-1">
-                  Work Summary
-                </span>
-                {s.summary}
-              </div>
-            )}
-
-            {/* Actions: Faculty can approve/reject, Admin sees read-only badge */}
-            {isFaculty ? (
-              <div className="mt-4 space-y-3 border-t border-border pt-4">
-                <Textarea
-                  rows={2}
-                  placeholder="Review remarks (required if rejecting)"
-                  value={remarks[s.id] ?? ""}
-                  onChange={(e) => setRemarks({ ...remarks, [s.id]: e.target.value })}
-                  maxLength={500}
-                />
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => decide.mutate({ id: s.id, approved: true })}
-                    disabled={decide.isPending}
-                  >
-                    Approve Session
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => decide.mutate({ id: s.id, approved: false })}
-                    disabled={decide.isPending}
-                  >
-                    Reject
-                  </Button>
+        {shown.map((s) => {
+          const waited = waitedDays(s.submitted_at ?? s.check_out_at);
+          return (
+            <li
+              key={s.id}
+              className="grid overflow-hidden rounded-lg border border-border bg-card md:grid-cols-[220px_minmax(0,1fr)]"
+            >
+              <div className="space-y-3 border-b border-border bg-muted/50 p-4 text-sm md:border-b-0 md:border-r">
+                <div>
+                  <p className="font-medium">{s.student_name}</p>
+                  {s.student_college_id && (
+                    <p className="text-xs text-muted-foreground">{s.student_college_id}</p>
+                  )}
                 </div>
+                <Link
+                  to="/projects/$id"
+                  params={{ id: s.project_id }}
+                  className="block text-sm leading-snug hover:underline"
+                >
+                  {s.projects?.title ?? "Event"}
+                </Link>
+                <dl className="tnum space-y-1 text-xs text-muted-foreground">
+                  <div>
+                    <dt className="sr-only">Date</dt>
+                    <dd>
+                      {new Date(s.check_in_at).toLocaleDateString(undefined, {
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="sr-only">Time</dt>
+                    <dd>
+                      {new Date(s.check_in_at).toLocaleTimeString(undefined, {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                      {s.check_out_at &&
+                        `–${new Date(s.check_out_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="sr-only">Duration</dt>
+                    <dd className="text-base font-semibold text-foreground">
+                      {formatMinutes(s.duration_minutes)}
+                    </dd>
+                  </div>
+                </dl>
+                {waited >= 3 && (
+                  <p className="text-xs font-medium text-warning-foreground">
+                    Waiting {waited} days
+                  </p>
+                )}
               </div>
-            ) : (
-              <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
-                <span>
-                  Status:{" "}
-                  <strong className="capitalize text-amber-500">Pending Faculty Approval</strong>
-                </span>
-                <span className="italic">Faculty approval required</span>
+
+              <div className="flex flex-col p-4 sm:p-5">
+                {s.notes && <p className="mb-2 text-sm text-muted-foreground">Plan: {s.notes}</p>}
+                {s.summary ? (
+                  <p className="whitespace-pre-line font-serif text-[16px] leading-relaxed">
+                    {s.summary}
+                  </p>
+                ) : (
+                  <p className="text-sm italic text-muted-foreground">No summary written.</p>
+                )}
+
+                {isFaculty ? (
+                  <div className="mt-auto space-y-3 pt-5">
+                    <Textarea
+                      rows={2}
+                      aria-label={`Remark for ${s.student_name}`}
+                      placeholder="Remark for the student (needed if you return it)"
+                      value={remarks[s.id] ?? ""}
+                      onChange={(e) => setRemarks({ ...remarks, [s.id]: e.target.value })}
+                      maxLength={500}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => decide.mutate({ id: s.id, approved: true })}
+                        disabled={decide.isPending}
+                      >
+                        <Check className="size-4" /> Verify {formatMinutes(s.duration_minutes)}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => decide.mutate({ id: s.id, approved: false })}
+                        disabled={decide.isPending}
+                      >
+                        <Undo2 className="size-4" /> Return
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-auto pt-5 text-xs text-muted-foreground">Waiting for faculty.</p>
+                )}
               </div>
-            )}
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

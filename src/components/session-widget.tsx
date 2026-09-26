@@ -103,39 +103,50 @@ export function SessionWidget() {
 
   if (active) {
     return (
-      <div className="rounded-lg border border-accent/40 bg-accent/8 p-6">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <section
+        aria-label="Running session"
+        className="overflow-hidden rounded-xl bg-sidebar text-sidebar-foreground"
+      >
+        <div className="graph-paper flex flex-wrap items-end justify-between gap-4 px-6 pb-5 pt-6">
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Session running</p>
-            <h2 className="mt-1 text-lg">{active.projects?.title}</h2>
+            <p className="flex items-center gap-2 text-sm text-sidebar-foreground/70">
+              <span className="pulse-dot size-2 rounded-full bg-accent" aria-hidden />
+              Checked in
+            </p>
+            <h2 className="mt-1 text-xl text-sidebar-primary">{active.projects?.title}</h2>
           </div>
-          <p className="font-display text-4xl tabular-nums">{liveClock(active.check_in_at)}</p>
+          <p
+            className="tnum font-display text-5xl font-semibold leading-none text-sidebar-primary sm:text-6xl"
+            aria-live="off"
+          >
+            {liveClock(active.check_in_at)}
+          </p>
         </div>
-        {active.notes && (
-          <p className="mt-3 text-sm text-muted-foreground">Notes: {active.notes}</p>
-        )}
-        <div className="mt-5 space-y-2">
-          <Label htmlFor="summary">Work summary</Label>
+        <div className="space-y-3 bg-card p-6 text-card-foreground">
+          {active.notes && <p className="text-sm text-muted-foreground">Notes: {active.notes}</p>}
+          <Label htmlFor="summary">What did you work on?</Label>
           <Textarea
             id="summary"
-            rows={4}
-            placeholder="What did you do in this session?"
+            rows={3}
+            placeholder="e.g. Ran the INT8 benchmark on the Jetson and logged FPS"
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
             maxLength={2000}
           />
+          <Button onClick={() => checkOut.mutate()} disabled={checkOut.isPending}>
+            <Square className="size-4" /> Check out and submit
+          </Button>
         </div>
-        <Button className="mt-4" onClick={() => checkOut.mutate()} disabled={checkOut.isPending}>
-          <Square className="size-4" /> Check out &amp; submit
-        </Button>
-      </div>
+      </section>
     );
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card p-6">
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">No active session</p>
-      <h2 className="mt-1 text-lg">Start research work</h2>
+    <div className="rounded-xl border border-border bg-card p-6">
+      <h2 className="text-lg">Start a session</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Pick the event you're working on and check in. Your time starts now.
+      </p>
 
       {memberships && memberships.length === 0 ? (
         <p className="mt-3 text-sm text-muted-foreground">
