@@ -30,7 +30,7 @@ export const Route = createFileRoute("/_authenticated/projects/")({
 });
 
 function ProjectsPage() {
-  const { user, role, refreshProfile } = useAuth();
+  const { user, role } = useAuth();
   const qc = useQueryClient();
   const isFaculty = role === "faculty" || role === "admin";
   const [open, setOpen] = useState(false);
@@ -53,19 +53,8 @@ function ProjectsPage() {
 
   const create = useMutation({
     mutationFn: async () => {
+      if (!isFaculty) throw new Error("Only faculty can create events");
       if (!form.title.trim()) throw new Error("Give the event a title");
-      if (!isFaculty) {
-        try {
-          await supabase.rpc("self_grant_faculty");
-        } catch {
-          // ignore error if role self-grant fails
-        }
-        try {
-          await refreshProfile();
-        } catch {
-          // ignore profile refresh error
-        }
-      }
       const { error } = await supabase.from("projects").insert({
         title: form.title.trim(),
         description: form.description || null,
@@ -117,59 +106,55 @@ function ProjectsPage() {
           </p>
         </div>
 
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="size-4" /> New event
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create event</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              {!isFaculty && (
-                <p className="text-xs text-muted-foreground">
-                  Creating an event makes you Faculty so you can supervise it.
-                </p>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  maxLength={140}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="desc">Description</Label>
-                <Textarea
-                  id="desc"
-                  rows={3}
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  maxLength={1000}
-                />
-              </div>
-              <Button
-                className="w-full"
-                onClick={() => create.mutate()}
-                disabled={create.isPending}
-              >
-                Create event
+        {isFaculty && (
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="size-4" /> New event
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create event</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="title">Title</Label>
+                  <Input
+                    id="title"
+                    value={form.title}
+                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+                    maxLength={140}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="desc">Description</Label>
+                  <Textarea
+                    id="desc"
+                    rows={3}
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    maxLength={1000}
+                  />
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => create.mutate()}
+                  disabled={create.isPending}
+                >
+                  Create event
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {isLoading && <p className="text-sm text-muted-foreground">Loading events…</p>}
 
       {projects && projects.length === 0 && (
         <p className="rounded-lg border border-dashed border-border p-8 text-sm text-muted-foreground">
-          No events yet.{" "}
-          {isFaculty ? "Create the first one." : "Create one or ask your faculty to."}
+          No events yet. {isFaculty ? "Create the first one." : "Ask your faculty to create one."}
         </p>
       )}
 
