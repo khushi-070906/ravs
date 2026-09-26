@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
@@ -40,8 +40,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const queryClient = useQueryClient();
+  // Id of the user whose role/profile we currently want. A slow load() for a
+  // previous user must never overwrite the role of whoever is signed in now.
+  const currentUserId = useRef<string | null>(null);
 
   async function load(userId: string) {
+    if (currentUserId.current !== userId) {
+      currentUserId.current = userId;
+      setRole(null);
+      setProfile(null);
+    }
     try {
       let [{ data: roleRow }, { data: profileRow }] = await Promise.all([
         supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
@@ -80,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         roleRow = healed ?? { role: "student" };
       }
 
+      if (currentUserId.current !== userId) return; // user changed mid-load
       setRole((roleRow?.role as AppRole) ?? "student");
       setProfile((profileRow as Profile) ?? null);
     } catch (err) {
@@ -104,8 +113,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         void load(next.user.id);
         void queryClient.invalidateQueries();
       } else {
+        currentUserId.current = null;
         setRole(null);
         setProfile(null);
+        queryClient.clear();
       }
       void router.invalidate();
     });
