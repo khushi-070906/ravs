@@ -69,7 +69,11 @@ function Approvals() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (role === "student") {
+  if (role === null) {
+    return <p className="text-sm text-muted-foreground">Loading…</p>;
+  }
+
+  if (role !== "faculty" && role !== "admin") {
     return (
       <div className="rounded-xl border border-border bg-card p-8 text-center">
         <h1 className="text-2xl font-bold">Access Restricted</h1>
