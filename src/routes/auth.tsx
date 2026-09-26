@@ -64,6 +64,17 @@ const ROLE_INFO: Record<
   },
 };
 
+async function fetchDbRole(userId: string): Promise<AppRole> {
+  const { data } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return ((data?.role as AppRole) ?? "student") as AppRole;
+}
+
+const cap = (r: string) => r.charAt(0).toUpperCase() + r.slice(1);
+
 function AuthPage() {
   const navigate = useNavigate();
   const { session, loading, refreshProfile } = useAuth();
@@ -76,8 +87,23 @@ function AuthPage() {
   const [collegeId, setCollegeId] = useState("");
 
   useEffect(() => {
-    if (!loading && session) navigate({ to: "/dashboard", replace: true });
-  }, [loading, session, navigate]);
+    if (!loading && session && !busy) navigate({ to: "/dashboard", replace: true });
+  }, [loading, session, busy, navigate]);
+
+  // The portal picked on screen must match the role stored in the database.
+  // If it doesn't, sign straight back out so a faculty/admin account can't be
+  // used through the Student portal (and vice versa).
+  async function enforcePortal(userId: string): Promise<boolean> {
+    const dbRole = await fetchDbRole(userId);
+    if (dbRole !== selectedRole) {
+      await supabase.auth.signOut();
+      toast.error(
+        `This account is registered as ${cap(dbRole)}. Select the ${cap(dbRole)} portal to sign in.`,
+      );
+      return false;
+    }
+    return true;
+  }
 
   const activeRole = ROLE_INFO[selectedRole];
 
@@ -85,11 +111,12 @@ function AuthPage() {
     e.preventDefault();
     setBusy(true);
     try {
-      const { error } = await withTimeout(
-        supabase.auth.signInWithPassword({ email, password }),
+      const { data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email: email.trim(), password }),
         15000,
       );
       if (error) return toast.error(error.message);
+      if (!data.user || !(await enforcePortal(data.user.id))) return;
       await refreshProfile();
       navigate({ to: "/dashboard", replace: true });
     } catch (err) {
@@ -117,7 +144,9 @@ function AuthPage() {
               full_name: cleanName,
               college_id: cleanId,
               college: cleanId,
-              role: selectedRole,
+              // Informational only — the database ignores this and assigns
+              // faculty/admin solely via allowlist or admin promotion.
+              requested_role: selectedRole,
             },
           },
         }),
@@ -137,47 +166,65 @@ function AuthPage() {
           errMsg.includes("already exists");
 
         if (isUserExists) {
-          const { error: signInErr } = await withTimeout(
+          setBusy(true); // keep the auto-redirect off until the portal is verified
+          const { data: siData, error: signInErr } = await withTimeout(
             supabase.auth.signInWithPassword({ email: cleanEmail, password }),
             15000,
           );
-          if (!signInErr) {
+          if (!signInErr && siData.user) {
+            const ok = await enforcePortal(siData.user.id);
+            setBusy(false);
+            if (!ok) return;
             await refreshProfile();
             toast.success("Account already exists — signed in!");
             return navigate({ to: "/dashboard", replace: true });
           }
-          if (signInErr.message.toLowerCase().includes("invalid login credentials")) {
+          setBusy(false);
+          if (signInErr?.message.toLowerCase().includes("invalid login credentials")) {
             return toast.error(
               "An account with this email already exists. Please sign in with your password.",
             );
           }
-          return toast.error(signInErr.message || error.message);
+          return toast.error(signInErr?.message || error.message);
         }
         return toast.error(error.message);
       }
 
       if (!data.session && data.user) {
-        const { error: signInErr } = await withTimeout(
+        const { data: siData, error: signInErr } = await withTimeout(
           supabase.auth.signInWithPassword({ email: cleanEmail, password }),
           15000,
         );
-        setBusy(false);
-        if (!signInErr) {
+        if (!signInErr && siData.user) {
+          const dbRole = await fetchDbRole(siData.user.id);
+          setBusy(false);
           await refreshProfile();
-          toast.success("Account created — signed in!");
+          announceCreated(dbRole);
           return navigate({ to: "/dashboard", replace: true });
         }
+        setBusy(false);
         toast.info("Account created! Please check your email to confirm or sign in.");
         return;
       }
 
+      const dbRole = data.user ? await fetchDbRole(data.user.id) : "student";
       setBusy(false);
       await refreshProfile();
-      toast.success(`Account created as ${selectedRole} — signed in!`);
+      announceCreated(dbRole);
       navigate({ to: "/dashboard", replace: true });
     } catch (err) {
       setBusy(false);
       toast.error(err instanceof Error ? err.message : "Sign up failed");
+    }
+  }
+
+  function announceCreated(dbRole: AppRole) {
+    if (dbRole === selectedRole) {
+      toast.success(`Account created as ${cap(dbRole)} — signed in!`);
+    } else {
+      toast.info(
+        `Account created as ${cap(dbRole)}. ${cap(selectedRole)} access has to be granted by an administrator.`,
+      );
     }
   }
 
