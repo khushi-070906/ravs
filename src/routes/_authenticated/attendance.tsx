@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { LeavePanel } from "@/components/leave-panel";
 import { FlagBadges } from "@/components/presence-flags";
+import { ConfirmedBadge } from "@/components/live-roster";
 import {
   CorrectionStatus,
   FixTimeDialog,
@@ -131,6 +132,7 @@ function Attendance() {
         "Check-in method",
         "Distance in (m)",
         "Distance out (m)",
+        "Supervisor confirmed at",
         "Flags",
         "Summary",
         "Reviewer remark",
@@ -146,6 +148,7 @@ function Attendance() {
         s.check_in_method === "code" ? "lab code" : "manual",
         s.check_in_distance_m ?? "",
         s.check_out_distance_m ?? "",
+        s.present_confirmed_at ? new Date(s.present_confirmed_at).toLocaleString() : "",
         (s.flags ?? []).map(flagLabel).join("; "),
         s.summary ?? "",
         s.remarks ?? "",
@@ -427,6 +430,9 @@ function Attendance() {
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={s.status} />
+                      {s.present_confirmed_at && (
+                        <ConfirmedBadge compact at={s.present_confirmed_at} className="ml-1.5" />
+                      )}
                       <FlagBadges flags={s.flags} className="mt-1.5 max-w-[14rem]" />
                       <CorrectionStatus session={s} />
                       {!isStaff && canRequestCorrection(s) && (

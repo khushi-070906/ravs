@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { PageHeader, StatusBadge } from "@/components/research";
 import { FlagBadges, PresenceLine } from "@/components/presence-flags";
 import { CorrectionReview } from "@/components/time-correction";
+import { ConfirmedBadge } from "@/components/live-roster";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -49,7 +50,19 @@ function Approvals() {
         .eq("status", "pending")
         .order("submitted_at", { ascending: true });
       if (error) throw error;
-      return attachStudentNames(data ?? []);
+      const rows = await attachStudentNames(data ?? []);
+      // names of supervisors who confirmed presence in person
+      const ids = [...new Set(rows.map((r) => r.present_confirmed_by).filter(Boolean))] as string[];
+      const { data: people } = ids.length
+        ? await supabase.from("profiles").select("id, full_name").in("id", ids)
+        : { data: [] as { id: string; full_name: string | null }[] };
+      const nameOf = new Map((people ?? []).map((p) => [p.id, p.full_name]));
+      return rows.map((r) => ({
+        ...r,
+        confirmed_by_name: r.present_confirmed_by
+          ? (nameOf.get(r.present_confirmed_by) ?? null)
+          : null,
+      }));
     },
   });
 
@@ -242,6 +255,27 @@ function Approvals() {
                   }
                   )
                 </button>
+                <button
+                  className="text-muted-foreground hover:text-foreground hover:underline"
+                  onClick={() =>
+                    setSelected(
+                      new Set(
+                        shown
+                          .filter(
+                            (x) => x.present_confirmed_at && x.correction_status !== "pending",
+                          )
+                          .map((x) => x.id),
+                      ),
+                    )
+                  }
+                >
+                  Select supervisor-confirmed (
+                  {
+                    shown.filter((x) => x.present_confirmed_at && x.correction_status !== "pending")
+                      .length
+                  }
+                  )
+                </button>
                 <span className="tnum ml-auto text-muted-foreground">
                   {picked.length} selected, {formatMinutes(pickedMins)}
                 </span>
@@ -284,7 +318,11 @@ function Approvals() {
                   key={s.id}
                   className={cn(
                     "grid overflow-hidden rounded-lg border bg-card md:grid-cols-[220px_minmax(0,1fr)]",
-                    (s.flags ?? []).length > 0 ? "border-warning/50" : "border-border",
+                    (s.flags ?? []).length > 0
+                      ? "border-warning/50"
+                      : s.present_confirmed_at
+                        ? "border-success/40"
+                        : "border-border",
                     selected.has(s.id) && "ring-2 ring-primary/40",
                   )}
                 >
@@ -355,6 +393,9 @@ function Approvals() {
 
                   <div className="flex flex-col p-4 sm:p-5">
                     <div className="mb-3 space-y-2">
+                      {s.present_confirmed_at && (
+                        <ConfirmedBadge at={s.present_confirmed_at} by={s.confirmed_by_name} />
+                      )}
                       <FlagBadges flags={s.flags} />
                       <PresenceLine s={s} />
                     </div>

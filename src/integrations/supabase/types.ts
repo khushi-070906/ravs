@@ -463,6 +463,8 @@ export type Database = {
           correction_status: string | null;
           correction_requested_at: string | null;
           correction_resolved_by: string | null;
+          present_confirmed_by: string | null;
+          present_confirmed_at: string | null;
         };
         Insert: {
           check_in_at?: string;
@@ -495,6 +497,8 @@ export type Database = {
           correction_status?: string | null;
           correction_requested_at?: string | null;
           correction_resolved_by?: string | null;
+          present_confirmed_by?: string | null;
+          present_confirmed_at?: string | null;
         };
         Update: {
           check_in_at?: string;
@@ -527,6 +531,8 @@ export type Database = {
           correction_status?: string | null;
           correction_requested_at?: string | null;
           correction_resolved_by?: string | null;
+          present_confirmed_by?: string | null;
+          present_confirmed_at?: string | null;
         };
         Relationships: [
           {
@@ -628,7 +634,17 @@ export type Database = {
           check_in_method: string;
           check_in_distance_m: number | null;
           flags: string[];
+          present_confirmed_at: string | null;
+          present_confirmed_by_name: string | null;
         }[];
+      };
+      confirm_presence: {
+        Args: { p_session: string; p_present?: boolean };
+        Returns: Database["public"]["Tables"]["work_sessions"]["Row"];
+      };
+      confirm_presence_all: {
+        Args: { p_project: string };
+        Returns: number;
       };
       presence_rotate: {
         Args: { p_project: string };

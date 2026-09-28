@@ -514,7 +514,7 @@ function ProjectDetail() {
         </div>
 
         <aside className="space-y-6 lg:sticky lg:top-10 lg:self-start">
-          {canManage && <LiveRoster projectId={id} />}
+          {canManage && <LiveRoster projectId={id} canConfirm />}
           <section className="rounded-lg border border-border bg-card p-4">
             <h2 className="text-base">About</h2>
             <dl className="mt-3 space-y-2 text-sm">
