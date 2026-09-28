@@ -20,6 +20,7 @@
 - 📍 **Presence Verification:** Rotating 30-second lab code (QR + 6 digits) shown on a lab screen, lab geofences, and review flags (no code, off-site, weak GPS, auto-closed). Wrong codes are throttled server-side.
 - 🕒 **Time Corrections:** Students request a corrected check-out time (forgotten or auto-closed sessions); faculty accept or decline it in the review queue before verifying.
 - 🟢 **Live Lab Roster:** Supervisors see who is checked in right now, with presence evidence, on the dashboard, event page and lab screen.
+- 📱 **Installable PWA:** Add to home screen on Android/iOS/desktop, loads offline (app shell only; check-in always needs the network), prompts before updating.
 - 🗓️ **Leave & Certificates:** Leave requests excuse scheduled lab hours; supervisors issue attendance certificates verifiable at `/verify/<code>`.
 
 ---

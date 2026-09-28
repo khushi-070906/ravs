@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 import { toast } from "sonner";
 import { ArrowLeft, Expand, FlaskConical, RefreshCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { currentUser } from "@/lib/current-user";
 import { checkInUrl } from "@/lib/presence";
 import { useLiveSessions } from "@/components/live-roster";
 import { Button } from "@/components/ui/button";
@@ -12,8 +13,8 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/presence/$id")({
   ssr: false,
   beforeLoad: async ({ location }) => {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) {
+    const user = await currentUser();
+    if (!user) {
       try {
         sessionStorage.setItem("ravs.next", location.href);
       } catch {

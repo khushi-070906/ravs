@@ -18,6 +18,7 @@ import { useAuth } from "@/lib/auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { NotificationsBell, useNotificationStream } from "@/components/notifications-bell";
+import { InstallButton } from "@/components/pwa";
 
 type NavItem = { to: string; label: string; icon: LucideIcon };
 
@@ -94,6 +95,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
+          <InstallButton variant="dark" className="mt-auto mb-2" />
         </nav>
 
         <div className="border-t border-sidebar-border p-4">
@@ -130,6 +132,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="font-display text-base font-semibold">RAVS</span>
         </Link>
         <span className="ml-auto" />
+        <InstallButton variant="icon" />
         <NotificationsBell />
         <Link
           to="/profile"
