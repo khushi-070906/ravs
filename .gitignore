@@ -36,3 +36,7 @@ dist-ssr
 
 # Netlify local build output
 .netlify/
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/
