@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { GraduationCap, BookOpen, ShieldCheck, FlaskConical } from "lucide-react";
@@ -77,6 +77,24 @@ const cap = (r: string) => r.charAt(0).toUpperCase() + r.slice(1);
 
 function AuthPage() {
   const navigate = useNavigate();
+  const router = useRouter();
+  const [forgot, setForgot] = useState(false);
+
+  // After sign-in, continue to the page that sent them here (e.g. a check-in QR).
+  function goAfterAuth() {
+    let next: string | null = null;
+    try {
+      next = sessionStorage.getItem("ravs.next");
+      sessionStorage.removeItem("ravs.next");
+    } catch {
+      /* storage unavailable */
+    }
+    if (next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/auth")) {
+      router.history.replace(next);
+    } else {
+      navigate({ to: "/dashboard", replace: true });
+    }
+  }
   const { session, loading, refreshProfile } = useAuth();
   const [selectedRole, setSelectedRole] = useState<AppRole>("student");
   const [busy, setBusy] = useState(false);
@@ -87,8 +105,9 @@ function AuthPage() {
   const [collegeId, setCollegeId] = useState("");
 
   useEffect(() => {
-    if (!loading && session && !busy) navigate({ to: "/dashboard", replace: true });
-  }, [loading, session, busy, navigate]);
+    if (!loading && session && !busy) goAfterAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, session, busy]);
 
   // The portal picked on screen must match the role stored in the database.
   // If it doesn't, sign straight back out so a faculty/admin account can't be
@@ -118,9 +137,32 @@ function AuthPage() {
       if (error) return toast.error(error.message);
       if (!data.user || !(await enforcePortal(data.user.id))) return;
       await refreshProfile();
-      navigate({ to: "/dashboard", replace: true });
+      goAfterAuth();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Sign in failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendReset(e: React.FormEvent) {
+    e.preventDefault();
+    const cleanEmail = email.trim();
+    if (!cleanEmail) return toast.error("Enter your account email");
+    setBusy(true);
+    try {
+      const { error } = await withTimeout(
+        supabase.auth.resetPasswordForEmail(cleanEmail, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        }),
+        15000,
+      );
+      if (error) return toast.error(error.message);
+      // Same message whether or not the account exists, so emails can't be probed.
+      toast.success("If that email has an account, a reset link is on its way.");
+      setForgot(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send reset link");
     } finally {
       setBusy(false);
     }
@@ -177,7 +219,7 @@ function AuthPage() {
             if (!ok) return;
             await refreshProfile();
             toast.success("Account already exists — signed in!");
-            return navigate({ to: "/dashboard", replace: true });
+            return goAfterAuth();
           }
           setBusy(false);
           if (signInErr?.message.toLowerCase().includes("invalid login credentials")) {
@@ -200,7 +242,7 @@ function AuthPage() {
           setBusy(false);
           await refreshProfile();
           announceCreated(dbRole);
-          return navigate({ to: "/dashboard", replace: true });
+          return goAfterAuth();
         }
         setBusy(false);
         toast.info("Account created! Please check your email to confirm or sign in.");
@@ -211,7 +253,7 @@ function AuthPage() {
       setBusy(false);
       await refreshProfile();
       announceCreated(dbRole);
-      navigate({ to: "/dashboard", replace: true });
+      goAfterAuth();
     } catch (err) {
       setBusy(false);
       toast.error(err instanceof Error ? err.message : "Sign up failed");
@@ -329,34 +371,72 @@ function AuthPage() {
             </TabsList>
 
             <TabsContent value="signin" className="mt-6">
-              <form onSubmit={signIn} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signin-email">Email</Label>
-                  <Input
-                    id="signin-email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    placeholder={`${selectedRole}@institution.edu`}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signin-password">Password</Label>
-                  <Input
-                    id="signin-password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-                <Button type="submit" className="h-10 w-full" disabled={busy}>
-                  {busy ? "Signing in…" : `Sign in as ${cap(selectedRole)}`}
-                </Button>
-              </form>
+              {forgot ? (
+                <form onSubmit={sendReset} className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Enter your account email and we'll send a link to set a new password.
+                  </p>
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-email">Email</Label>
+                    <Input
+                      id="reset-email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+                  <Button type="submit" className="h-10 w-full" disabled={busy}>
+                    {busy ? "Sending…" : "Send reset link"}
+                  </Button>
+                  <button
+                    type="button"
+                    className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+                    onClick={() => setForgot(false)}
+                  >
+                    Back to sign in
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={signIn} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-email">Email</Label>
+                    <Input
+                      id="signin-email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      placeholder={`${selectedRole}@institution.edu`}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-baseline justify-between">
+                      <Label htmlFor="signin-password">Password</Label>
+                      <button
+                        type="button"
+                        className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                        onClick={() => setForgot(true)}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                    <Input
+                      id="signin-password"
+                      type="password"
+                      autoComplete="current-password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </div>
+                  <Button type="submit" className="h-10 w-full" disabled={busy}>
+                    {busy ? "Signing in…" : `Sign in as ${cap(selectedRole)}`}
+                  </Button>
+                </form>
+              )}
             </TabsContent>
 
             <TabsContent value="signup" className="mt-6">

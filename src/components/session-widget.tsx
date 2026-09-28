@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Play, Square } from "lucide-react";
+import { KeyRound, MapPin, Play, Square } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { elapsedMinutes, liveClock } from "@/lib/session-utils";
+import { assertCheckedIn, checkInFlagHint, getPosition, positionArgs } from "@/lib/presence";
+import { useInstitution } from "@/lib/institution";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -22,7 +25,10 @@ export function SessionWidget() {
   const [projectId, setProjectId] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [summary, setSummary] = useState("");
+  const [code, setCode] = useState("");
   const [, setTick] = useState(0);
+  const { data: institution } = useInstitution();
+  const maxMins = institution?.max_session_minutes ?? 480;
 
   const { data: memberships } = useQuery({
     queryKey: ["my-projects", user?.id],
@@ -61,17 +67,25 @@ export function SessionWidget() {
   const checkIn = useMutation({
     mutationFn: async () => {
       if (!projectId) throw new Error("Pick an event first");
-      const { error } = await supabase.from("work_sessions").insert({
-        project_id: projectId,
-        student_id: user!.id,
-        notes: notes || null,
-        status: "active",
+      const pos = await getPosition();
+      const { data, error } = await supabase.rpc("check_in", {
+        p_project: projectId,
+        p_notes: notes.trim() || null,
+        p_code: code.trim() || null,
+        ...positionArgs(pos),
       });
       if (error) throw error;
+      return assertCheckedIn(data);
     },
-    onSuccess: () => {
+    onSuccess: (row) => {
       setNotes("");
-      toast.success("Checked in — timer running");
+      setCode("");
+      const flags = row?.flags ?? [];
+      if (flags.length === 0) toast.success("Checked in — presence verified");
+      else
+        toast.warning("Checked in, but flagged for review", {
+          description: checkInFlagHint(flags),
+        });
       qc.invalidateQueries();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -80,17 +94,12 @@ export function SessionWidget() {
   const checkOut = useMutation({
     mutationFn: async () => {
       if (!summary.trim()) throw new Error("Add a work summary before submitting");
-      const now = new Date().toISOString();
-      const { error } = await supabase
-        .from("work_sessions")
-        .update({
-          check_out_at: now,
-          duration_minutes: elapsedMinutes(active!.check_in_at),
-          summary: summary.trim(),
-          status: "pending",
-          submitted_at: now,
-        })
-        .eq("id", active!.id);
+      const pos = await getPosition();
+      const { error } = await supabase.rpc("check_out", {
+        p_session: active!.id,
+        p_summary: summary.trim(),
+        ...positionArgs(pos),
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -123,6 +132,28 @@ export function SessionWidget() {
           </p>
         </div>
         <div className="space-y-3 bg-card p-6 text-card-foreground">
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              {active.check_in_method === "code" ? (
+                <>
+                  <KeyRound className="size-3.5" /> Checked in with lab code
+                </>
+              ) : (
+                <>
+                  <KeyRound className="size-3.5" /> No lab code
+                </>
+              )}
+            </span>
+            {active.check_in_lat != null && (
+              <span className="inline-flex items-center gap-1">
+                <MapPin className="size-3.5" /> Location recorded
+              </span>
+            )}
+            <span>
+              Closes automatically after {Math.round((maxMins / 60) * 10) / 10}h
+              {elapsedMinutes(active.check_in_at) > maxMins - 30 && " — check out soon"}
+            </span>
+          </p>
           {active.notes && <p className="text-sm text-muted-foreground">Notes: {active.notes}</p>}
           <Label htmlFor="summary">What did you work on?</Label>
           <Textarea
@@ -168,6 +199,23 @@ export function SessionWidget() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="lab-code">Lab code</Label>
+            <Input
+              id="lab-code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="6-digit code on the lab screen"
+              maxLength={7}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ""))}
+              className="tnum w-56 tracking-[0.3em]"
+            />
+            <p className="text-xs text-muted-foreground">
+              Or scan the QR code in the lab with your phone camera. Without a code, your session is
+              flagged for your supervisor. Your location is recorded at check-in and check-out.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="notes">Session note (optional)</Label>

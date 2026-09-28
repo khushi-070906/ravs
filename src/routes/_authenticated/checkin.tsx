@@ -5,8 +5,9 @@ import { toast } from "sonner";
 import { KeyRound, MapPin, Play } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { getPosition, positionArgs, flagLabel } from "@/lib/presence";
+import { assertCheckedIn, checkInFlagHint, getPosition, positionArgs } from "@/lib/presence";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -27,6 +28,9 @@ function CheckIn() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [notes, setNotes] = useState("");
+  // Prefilled from the QR link, but editable: the QR code often expires while
+  // the student signs in, so they can type the one on screen instead.
+  const [labCode, setLabCode] = useState(code ?? "");
 
   const { data, isLoading } = useQuery({
     queryKey: ["checkin-context", projectId, user?.id],
@@ -56,17 +60,20 @@ function CheckIn() {
       const pos = await getPosition();
       const { data: row, error } = await supabase.rpc("check_in", {
         p_project: projectId!,
-        p_code: code ?? null,
+        p_code: labCode || null,
         p_notes: notes.trim() || null,
         ...positionArgs(pos),
       });
       if (error) throw error;
-      return row;
+      return assertCheckedIn(row);
     },
     onSuccess: (row) => {
       const flags = row?.flags ?? [];
       if (flags.length === 0) toast.success("Checked in — presence verified");
-      else toast.warning(`Checked in, flagged: ${flags.map(flagLabel).join(", ")}`);
+      else
+        toast.warning("Checked in, but flagged for review", {
+          description: checkInFlagHint(flags),
+        });
       qc.invalidateQueries();
       navigate({ to: "/dashboard", replace: true });
     },
@@ -156,22 +163,29 @@ function CheckIn() {
         <p className="text-sm text-muted-foreground">Check in to</p>
         <h1 className="mt-1 text-2xl">{data.project.title}</h1>
       </div>
-      <ul className="space-y-1.5 text-sm text-muted-foreground">
-        <li className="flex items-center gap-2">
-          <KeyRound className="size-4" />
-          {code ? (
-            <>
-              Lab code <span className="tnum font-medium text-foreground">{code}</span> will be
-              verified
-            </>
-          ) : (
-            "No lab code in this link — the session will be flagged"
-          )}
-        </li>
-        <li className="flex items-center gap-2">
-          <MapPin className="size-4" /> Your location is checked against the lab
-        </li>
-      </ul>
+      <div className="space-y-2">
+        <Label htmlFor="ci-code" className="flex items-center gap-2">
+          <KeyRound className="size-4" /> Lab code
+        </Label>
+        <Input
+          id="ci-code"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          placeholder="6-digit code on the lab screen"
+          maxLength={6}
+          value={labCode}
+          onChange={(e) => setLabCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          className="tnum w-56 tracking-[0.3em]"
+        />
+        <p className="text-xs text-muted-foreground">
+          {labCode
+            ? "Codes change every 30 seconds. If this one has expired, type the code on the screen now."
+            : "Without a lab code the session will be flagged for your supervisor."}
+        </p>
+      </div>
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <MapPin className="size-4" /> Your location is checked against the lab
+      </p>
       <div className="space-y-2">
         <Label htmlFor="ci-notes">Plan for this session (optional)</Label>
         <Textarea
@@ -185,9 +199,6 @@ function CheckIn() {
       <Button className="h-11 w-full" onClick={() => checkIn.mutate()} disabled={checkIn.isPending}>
         <Play className="size-4" /> {checkIn.isPending ? "Checking in…" : "Check in now"}
       </Button>
-      <p className="text-xs text-muted-foreground">
-        Codes change every 30 seconds. If it has expired, scan the screen again.
-      </p>
     </>,
   );
 }

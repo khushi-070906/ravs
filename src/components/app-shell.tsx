@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { NotificationsBell } from "@/components/notifications-bell";
+import { NotificationsBell, useNotificationStream } from "@/components/notifications-bell";
 
 type NavItem = { to: string; label: string; icon: LucideIcon };
 
@@ -33,6 +33,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isStaff = role === "faculty" || role === "admin";
+  useNotificationStream();
 
   const items: NavItem[] = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutGrid },

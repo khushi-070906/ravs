@@ -1,8 +1,19 @@
+import { LiveRoster } from "@/components/live-roster";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Share2, UserMinus, ShieldAlert, Paperclip, Check, X, Pencil, MapPin } from "lucide-react";
+import {
+  Share2,
+  UserMinus,
+  ShieldAlert,
+  Paperclip,
+  Check,
+  X,
+  Pencil,
+  MapPin,
+  QrCode,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { attachStudentNames } from "@/lib/people";
@@ -15,6 +26,7 @@ import {
   StatusBadge,
 } from "@/components/research";
 import { EventEditor } from "@/components/event-editor";
+import { CertificatesPanel } from "@/components/certificates";
 import { useDepartments, useLabs, useRecommendations, useStaff } from "@/lib/institution";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -332,6 +344,13 @@ function ProjectDetail() {
           </div>
           <div className="flex items-center gap-2">
             {canManage && (
+              <Button size="sm" asChild>
+                <Link to="/presence/$id" params={{ id }}>
+                  <QrCode className="size-4" /> Check-in code
+                </Link>
+              </Button>
+            )}
+            {canManage && (
               <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
                 <Pencil className="size-4" /> Edit
               </Button>
@@ -362,7 +381,7 @@ function ProjectDetail() {
             <HoursProgress
               approvedMins={sum(mySessions, "approved")}
               pendingMins={sum(mySessions, "pending")}
-              requiredHours={project.required_hours}
+              requiredHours={Number(recFor(user!.id)?.required_hours ?? project.required_hours)}
             />
           </div>
         )}
@@ -495,6 +514,7 @@ function ProjectDetail() {
         </div>
 
         <aside className="space-y-6 lg:sticky lg:top-10 lg:self-start">
+          {canManage && <LiveRoster projectId={id} />}
           <section className="rounded-lg border border-border bg-card p-4">
             <h2 className="text-base">About</h2>
             <dl className="mt-3 space-y-2 text-sm">
@@ -566,6 +586,14 @@ function ProjectDetail() {
               </ul>
             )}
           </section>
+
+          {(canManage || isJoined) && (
+            <CertificatesPanel
+              projectId={id}
+              canManage={canManage}
+              members={members.filter((m) => m.student_role === "student")}
+            />
+          )}
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -649,7 +677,9 @@ function ProjectDetail() {
                             compact
                             approvedMins={sum(ms, "approved")}
                             pendingMins={sum(ms, "pending")}
-                            requiredHours={project.required_hours}
+                            requiredHours={Number(
+                              recFor(m.student_id)?.required_hours ?? project.required_hours,
+                            )}
                           />
                           {recFor(m.student_id) && (
                             <RecommendationBadge value={recFor(m.student_id)!.recommendation} />

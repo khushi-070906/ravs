@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { Link } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +17,42 @@ function ago(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
+/** Subscribe once per app (AppShell) — the bell renders twice (desktop + mobile). */
+export function useNotificationStream() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`notifications:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const n = payload.new as { title?: string; body?: string | null; kind?: string };
+          qc.invalidateQueries({ queryKey: ["notifications", user.id] });
+          if (n.title) toast(n.title, { description: n.body ?? undefined });
+          // the thing the notification is about changed too
+          if (n.kind?.startsWith("session_") || n.kind?.startsWith("leave_")) {
+            qc.invalidateQueries({ queryKey: ["approval-queue"] });
+            qc.invalidateQueries({ queryKey: ["leave-queue"] });
+            qc.invalidateQueries({ queryKey: ["my-leave"] });
+            qc.invalidateQueries({ queryKey: ["attendance"] });
+          }
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [user, qc]);
+}
+
 export function NotificationsBell({ tone = "light" }: { tone?: "light" | "dark" }) {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -22,7 +60,8 @@ export function NotificationsBell({ tone = "light" }: { tone?: "light" | "dark" 
   const { data } = useQuery({
     queryKey: ["notifications", user?.id],
     enabled: !!user,
-    refetchInterval: 60_000,
+    // realtime pushes new rows; this slow poll only covers a dropped socket
+    refetchInterval: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("notifications")

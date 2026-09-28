@@ -53,6 +53,18 @@ export const FLAG_INFO: Record<string, { label: string; detail: string }> = {
     label: "No location (out)",
     detail: "Location was unavailable or denied at check-out.",
   },
+  low_accuracy_in: {
+    label: "Weak GPS (in)",
+    detail: "Near the lab, but the device reported poor location accuracy at check-in.",
+  },
+  low_accuracy_out: {
+    label: "Weak GPS (out)",
+    detail: "Near the lab, but the device reported poor location accuracy at check-out.",
+  },
+  time_corrected: {
+    label: "Time corrected",
+    detail: "Check-out time was changed after a correction the supervisor accepted.",
+  },
   too_long: {
     label: "Capped",
     detail: "Session ran past the institution limit and was capped.",
@@ -75,4 +87,30 @@ export function formatDistance(m: number | null | undefined) {
 export function checkInUrl(projectId: string, code: string) {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   return `${origin}/checkin?p=${encodeURIComponent(projectId)}&c=${encodeURIComponent(code)}`;
+}
+
+/**
+ * check_in() returns an empty row (instead of raising) for a wrong code, so the
+ * server can record the failed attempt for throttling.
+ */
+export function assertCheckedIn<T extends { id: string | null } | null | undefined>(
+  row: T,
+): NonNullable<T> {
+  if (!row || !row.id) {
+    throw new Error(
+      "That check-in code has expired or is for another event. Use the code on the lab screen now.",
+    );
+  }
+  return row as NonNullable<T>;
+}
+
+/** Plain-language hint for the most important flag on a fresh check-in. */
+export function checkInFlagHint(flags: string[]): string {
+  if (flags.includes("no_code")) return "Enter the code shown in the lab next time.";
+  if (flags.some((f) => f.startsWith("off_site"))) return "Your location didn't match the lab.";
+  if (flags.some((f) => f.startsWith("no_location")))
+    return "Location was unavailable. Allow location access for this site.";
+  if (flags.some((f) => f.startsWith("low_accuracy")))
+    return "Your device's location was too imprecise. Turn on precise location / Wi-Fi.";
+  return flags.map(flagLabel).join(", ");
 }

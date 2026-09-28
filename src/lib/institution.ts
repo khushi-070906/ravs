@@ -9,6 +9,9 @@ export type Lab = {
   location: string | null;
   incharge_id: string | null;
   capacity: number | null;
+  lat: number | null;
+  lng: number | null;
+  radius_m: number;
 };
 export type Recommendation = "eligible" | "on_track" | "at_risk" | "behind";
 

@@ -16,6 +16,14 @@ import {
   downloadCsv,
 } from "@/components/research";
 import { Button } from "@/components/ui/button";
+import { LeavePanel } from "@/components/leave-panel";
+import { FlagBadges } from "@/components/presence-flags";
+import {
+  CorrectionStatus,
+  FixTimeDialog,
+  canRequestCorrection,
+} from "@/components/time-correction";
+import { flagLabel } from "@/lib/presence";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -120,6 +128,10 @@ function Attendance() {
         ...(isStaff ? ["Student", "College ID"] : []),
         "Event",
         "Status",
+        "Check-in method",
+        "Distance in (m)",
+        "Distance out (m)",
+        "Flags",
         "Summary",
         "Reviewer remark",
       ],
@@ -131,6 +143,10 @@ function Attendance() {
         ...(isStaff ? [s.student_name, s.student_college_id ?? ""] : []),
         titleOf(s),
         s.status,
+        s.check_in_method === "code" ? "lab code" : "manual",
+        s.check_in_distance_m ?? "",
+        s.check_out_distance_m ?? "",
+        (s.flags ?? []).map(flagLabel).join("; "),
         s.summary ?? "",
         s.remarks ?? "",
       ]),
@@ -218,6 +234,7 @@ function Attendance() {
                       "Event",
                       "Verified hours",
                       "Required hours",
+                      "Excused hours (leave)",
                       "Progress %",
                       "Expected %",
                       "Recommendation",
@@ -229,6 +246,7 @@ function Attendance() {
                       projects.find((p) => p.id === r.project_id)?.title ?? "",
                       hoursFrom(r.verified_minutes),
                       r.required_hours,
+                      hoursFrom(r.excused_minutes),
                       r.progress_pct,
                       r.expected_pct ?? "",
                       r.recommendation,
@@ -280,6 +298,12 @@ function Attendance() {
                         pendingMins={Number(r.pending_minutes)}
                         requiredHours={Number(r.required_hours)}
                       />
+                      {Number(r.excused_minutes) > 0 && (
+                        <p className="tnum mt-1 text-[11px] text-muted-foreground">
+                          {hoursFrom(r.excused_minutes)}h excused on leave (of{" "}
+                          {r.base_required_hours}h)
+                        </p>
+                      )}
                       {r.expected_pct != null && (
                         <p className="tnum mt-1 text-[11px] text-muted-foreground">
                           {Math.round(Number(r.expected_pct))}% of term elapsed
@@ -297,6 +321,8 @@ function Attendance() {
           </div>
         )}
       </section>
+
+      {!isStaff && <LeavePanel />}
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
@@ -399,8 +425,15 @@ function Attendance() {
                     <td className="tnum whitespace-nowrap px-4 py-3 text-right">
                       {formatMinutes(s.duration_minutes)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3">
+                    <td className="px-4 py-3">
                       <StatusBadge status={s.status} />
+                      <FlagBadges flags={s.flags} className="mt-1.5 max-w-[14rem]" />
+                      <CorrectionStatus session={s} />
+                      {!isStaff && canRequestCorrection(s) && (
+                        <div className="mt-1.5">
+                          <FixTimeDialog session={s} />
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

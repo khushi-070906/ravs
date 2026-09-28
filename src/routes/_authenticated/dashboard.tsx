@@ -17,6 +17,7 @@ import {
 import { useRecommendations } from "@/lib/institution";
 import { hoursFrom, startOfWeek } from "@/lib/session-utils";
 import { Button } from "@/components/ui/button";
+import { LiveRoster } from "@/components/live-roster";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -351,6 +352,7 @@ function StaffView({ role }: { role: "faculty" | "admin" }) {
         </section>
 
         <aside className="space-y-6">
+          <LiveRoster />
           <section className="rounded-lg border border-border bg-card p-4 sm:p-5">
             <div className="flex items-baseline justify-between">
               <h2 className="text-base">Events</h2>

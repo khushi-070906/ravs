@@ -40,6 +40,9 @@ export type Database = {
           location: string | null;
           incharge_id: string | null;
           capacity: number | null;
+          lat: number | null;
+          lng: number | null;
+          radius_m: number;
           created_at: string;
         };
         Insert: {
@@ -49,6 +52,9 @@ export type Database = {
           location?: string | null;
           incharge_id?: string | null;
           capacity?: number | null;
+          lat?: number | null;
+          lng?: number | null;
+          radius_m?: number;
           created_at?: string;
         };
         Update: {
@@ -58,6 +64,9 @@ export type Database = {
           location?: string | null;
           incharge_id?: string | null;
           capacity?: number | null;
+          lat?: number | null;
+          lng?: number | null;
+          radius_m?: number;
           created_at?: string;
         };
         Relationships: [];
@@ -73,6 +82,7 @@ export type Database = {
           semester_end: string | null;
           min_attendance_pct: number;
           timezone: string;
+          max_session_minutes: number;
           updated_at: string;
         };
         Insert: {
@@ -85,6 +95,7 @@ export type Database = {
           semester_end?: string | null;
           min_attendance_pct?: number;
           timezone?: string;
+          max_session_minutes?: number;
           updated_at?: string;
         };
         Update: {
@@ -97,6 +108,7 @@ export type Database = {
           semester_end?: string | null;
           min_attendance_pct?: number;
           timezone?: string;
+          max_session_minutes?: number;
           updated_at?: string;
         };
         Relationships: [];
@@ -436,6 +448,21 @@ export type Database = {
           submitted_at: string | null;
           summary: string | null;
           updated_at: string;
+          flags: string[];
+          check_in_method: string;
+          check_in_lat: number | null;
+          check_in_lng: number | null;
+          check_in_accuracy_m: number | null;
+          check_in_distance_m: number | null;
+          check_out_lat: number | null;
+          check_out_lng: number | null;
+          check_out_accuracy_m: number | null;
+          check_out_distance_m: number | null;
+          correction_check_out_at: string | null;
+          correction_reason: string | null;
+          correction_status: string | null;
+          correction_requested_at: string | null;
+          correction_resolved_by: string | null;
         };
         Insert: {
           check_in_at?: string;
@@ -453,6 +480,21 @@ export type Database = {
           submitted_at?: string | null;
           summary?: string | null;
           updated_at?: string;
+          flags?: string[];
+          check_in_method?: string;
+          check_in_lat?: number | null;
+          check_in_lng?: number | null;
+          check_in_accuracy_m?: number | null;
+          check_in_distance_m?: number | null;
+          check_out_lat?: number | null;
+          check_out_lng?: number | null;
+          check_out_accuracy_m?: number | null;
+          check_out_distance_m?: number | null;
+          correction_check_out_at?: string | null;
+          correction_reason?: string | null;
+          correction_status?: string | null;
+          correction_requested_at?: string | null;
+          correction_resolved_by?: string | null;
         };
         Update: {
           check_in_at?: string;
@@ -470,6 +512,21 @@ export type Database = {
           submitted_at?: string | null;
           summary?: string | null;
           updated_at?: string;
+          flags?: string[];
+          check_in_method?: string;
+          check_in_lat?: number | null;
+          check_in_lng?: number | null;
+          check_in_accuracy_m?: number | null;
+          check_in_distance_m?: number | null;
+          check_out_lat?: number | null;
+          check_out_lng?: number | null;
+          check_out_accuracy_m?: number | null;
+          check_out_distance_m?: number | null;
+          correction_check_out_at?: string | null;
+          correction_reason?: string | null;
+          correction_status?: string | null;
+          correction_requested_at?: string | null;
+          correction_resolved_by?: string | null;
         };
         Relationships: [
           {
@@ -481,11 +538,143 @@ export type Database = {
           },
         ];
       };
+      leave_requests: {
+        Row: {
+          id: string;
+          student_id: string;
+          project_id: string | null;
+          starts_on: string;
+          ends_on: string;
+          reason: string;
+          status: Database["public"]["Enums"]["submission_status"];
+          remarks: string | null;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          student_id?: string;
+          project_id?: string | null;
+          starts_on: string;
+          ends_on: string;
+          reason: string;
+          status?: Database["public"]["Enums"]["submission_status"];
+          remarks?: string | null;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          student_id?: string;
+          project_id?: string | null;
+          starts_on?: string;
+          ends_on?: string;
+          reason?: string;
+          status?: Database["public"]["Enums"]["submission_status"];
+          remarks?: string | null;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "leave_requests_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      attendance_certificates: {
+        Row: Database["public"]["CompositeTypes"]["attendance_certificate"];
+        Insert: Partial<Database["public"]["CompositeTypes"]["attendance_certificate"]>;
+        Update: Partial<Database["public"]["CompositeTypes"]["attendance_certificate"]>;
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
     };
     Functions: {
+      presence_code: {
+        Args: { p_project: string };
+        Returns: { code: string; expires_at: string; period_s: number; server_now: string }[];
+      };
+      request_time_correction: {
+        Args: { p_session: string; p_check_out_at: string; p_reason: string };
+        Returns: Database["public"]["Tables"]["work_sessions"]["Row"];
+      };
+      withdraw_time_correction: {
+        Args: { p_session: string };
+        Returns: undefined;
+      };
+      resolve_time_correction: {
+        Args: { p_session: string; p_accept: boolean; p_remarks?: string | null };
+        Returns: Database["public"]["Tables"]["work_sessions"]["Row"];
+      };
+      live_sessions: {
+        Args: { p_project?: string | null };
+        Returns: {
+          session_id: string;
+          student_id: string;
+          student_name: string;
+          student_college_id: string | null;
+          project_id: string;
+          project_title: string;
+          check_in_at: string;
+          check_in_method: string;
+          check_in_distance_m: number | null;
+          flags: string[];
+        }[];
+      };
+      presence_rotate: {
+        Args: { p_project: string };
+        Returns: undefined;
+      };
+      check_in: {
+        Args: {
+          p_project: string;
+          p_notes?: string | null;
+          p_code?: string | null;
+          p_lat?: number | null;
+          p_lng?: number | null;
+          p_accuracy?: number | null;
+        };
+        Returns: Database["public"]["Tables"]["work_sessions"]["Row"];
+      };
+      check_out: {
+        Args: {
+          p_session: string;
+          p_summary: string;
+          p_lat?: number | null;
+          p_lng?: number | null;
+          p_accuracy?: number | null;
+        };
+        Returns: Database["public"]["Tables"]["work_sessions"]["Row"];
+      };
+      issue_certificate: {
+        Args: { p_student: string; p_project: string };
+        Returns: Database["public"]["CompositeTypes"]["attendance_certificate"];
+      };
+      revoke_certificate: {
+        Args: { p_id: string; p_reason?: string | null };
+        Returns: undefined;
+      };
+      verify_certificate: {
+        Args: { p_code: string };
+        Returns: Omit<
+          Database["public"]["CompositeTypes"]["attendance_certificate"],
+          | "id"
+          | "student_id"
+          | "project_id"
+          | "issued_by"
+          | "excused_minutes"
+          | "min_attendance_pct"
+        >[];
+      };
       admin_list_users: {
         Args: Record<PropertyKey, never>;
         Returns: {
@@ -511,6 +700,8 @@ export type Database = {
           verified_minutes: number;
           pending_minutes: number;
           required_hours: number;
+          base_required_hours: number;
+          excused_minutes: number;
           progress_pct: number;
           expected_pct: number | null;
           recommendation: string;
@@ -551,7 +742,30 @@ export type Database = {
       submission_status: "pending" | "approved" | "rejected";
     };
     CompositeTypes: {
-      [_ in never]: never;
+      attendance_certificate: {
+        id: string;
+        code: string;
+        student_id: string;
+        project_id: string;
+        student_name: string;
+        student_college_id: string | null;
+        project_title: string;
+        institution_name: string;
+        term_label: string | null;
+        period_start: string | null;
+        period_end: string | null;
+        verified_minutes: number;
+        session_count: number;
+        required_hours: number;
+        excused_minutes: number;
+        progress_pct: number;
+        min_attendance_pct: number;
+        issued_by: string | null;
+        issued_by_name: string;
+        issued_at: string;
+        revoked_at: string | null;
+        revoked_reason: string | null;
+      };
     };
   };
 };

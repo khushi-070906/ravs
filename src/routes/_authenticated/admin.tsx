@@ -2,9 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Download, Plus, Search, Trash2, X } from "lucide-react";
+import { Download, LocateFixed, Plus, Search, Trash2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { getPosition } from "@/lib/presence";
 import { useDepartments, useInstitution, useLabs, useStaff } from "@/lib/institution";
 import { PageHeader, downloadCsv } from "@/components/research";
 import { Button } from "@/components/ui/button";
@@ -613,6 +614,9 @@ function LabsTab() {
         location?: string | null;
         incharge_id?: string | null;
         capacity?: number | null;
+        lat?: number | null;
+        lng?: number | null;
+        radius_m?: number;
       };
     }) => {
       const { error } = await supabase.from("labs").update(v.patch).eq("id", v.id);
@@ -621,6 +625,19 @@ function LabsTab() {
     onSuccess: refresh,
     onError: (e: Error) => toast.error(e.message),
   });
+  async function pinHere(id: string) {
+    const pos = await getPosition(12000);
+    if (!pos) return toast.error("Couldn't read this device's location. Allow location access.");
+    if (pos.accuracy > 100)
+      toast.warning(
+        `Location is only accurate to ~${Math.round(pos.accuracy)} m. Try again near a window.`,
+      );
+    update.mutate(
+      { id, patch: { lat: Number(pos.lat.toFixed(6)), lng: Number(pos.lng.toFixed(6)) } },
+      { onSuccess: () => toast.success("Geofence centred on your current location") },
+    );
+  }
+
   const remove = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("labs").delete().eq("id", id);
@@ -692,7 +709,7 @@ function LabsTab() {
       </form>
 
       <div className="overflow-x-auto rounded-lg border border-border bg-card">
-        <table className="w-full min-w-[820px] text-sm">
+        <table className="w-full min-w-[1100px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs text-muted-foreground">
               <th className="px-4 py-3 font-medium">Lab</th>
@@ -700,6 +717,7 @@ function LabsTab() {
               <th className="px-4 py-3 font-medium">Location</th>
               <th className="px-4 py-3 font-medium">In charge</th>
               <th className="px-4 py-3 font-medium">Seats</th>
+              <th className="px-4 py-3 font-medium">Geofence (lat, lng · radius m)</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -770,6 +788,48 @@ function LabsTab() {
                     }}
                   />
                 </td>
+                <td className="px-4 py-2">
+                  <div className="flex items-center gap-1">
+                    <div className="w-44">
+                      <InlineText
+                        value={l.lat != null && l.lng != null ? `${l.lat}, ${l.lng}` : ""}
+                        label={`Coordinates of ${l.name}`}
+                        onSave={(v) => {
+                          if (!v)
+                            return update.mutate({ id: l.id, patch: { lat: null, lng: null } });
+                          const m = v.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
+                          if (!m) return toast.error('Use "lat, lng", e.g. 28.6377, 77.1161');
+                          update.mutate({
+                            id: l.id,
+                            patch: { lat: Number(m[1]), lng: Number(m[2]) },
+                          });
+                        }}
+                      />
+                    </div>
+                    <div className="w-20">
+                      <InlineText
+                        value={String(l.radius_m ?? 150)}
+                        label={`Radius of ${l.name} in metres`}
+                        onSave={(v) => {
+                          const n = parseInt(v, 10);
+                          if (!(n >= 10 && n <= 5000))
+                            return toast.error("Radius must be 10–5000 m");
+                          update.mutate({ id: l.id, patch: { radius_m: n } });
+                        }}
+                      />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 shrink-0"
+                      aria-label={`Use my current location for ${l.name}`}
+                      title="Use my current location"
+                      onClick={() => void pinHere(l.id)}
+                    >
+                      <LocateFixed className="size-4" />
+                    </Button>
+                  </div>
+                </td>
                 <td className="px-4 py-2 text-right">
                   <Button
                     variant="ghost"
@@ -785,7 +845,7 @@ function LabsTab() {
             ))}
             {(labs ?? []).length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                   No labs yet.
                 </td>
               </tr>
@@ -811,6 +871,7 @@ function InstitutionTab() {
     semester_end: "",
     min_attendance_pct: "75",
     timezone: "Asia/Kolkata",
+    max_session_hours: "8",
   });
   useEffect(() => {
     if (data)
@@ -823,6 +884,7 @@ function InstitutionTab() {
         semester_end: data.semester_end ?? "",
         min_attendance_pct: String(data.min_attendance_pct ?? 75),
         timezone: data.timezone ?? "Asia/Kolkata",
+        max_session_hours: String(Math.round(((data.max_session_minutes ?? 480) / 60) * 10) / 10),
       });
   }, [data]);
 
@@ -831,6 +893,8 @@ function InstitutionTab() {
       const pct = parseInt(f.min_attendance_pct, 10);
       if (!f.name.trim()) throw new Error("Institution name is required");
       if (!(pct >= 0 && pct <= 100)) throw new Error("Minimum attendance must be 0–100");
+      const maxH = parseFloat(f.max_session_hours);
+      if (!(maxH >= 0.5 && maxH <= 24)) throw new Error("Session limit must be 0.5–24 hours");
       if (f.semester_start && f.semester_end && f.semester_end < f.semester_start)
         throw new Error("Semester ends before it starts");
       const { error } = await supabase
@@ -844,6 +908,7 @@ function InstitutionTab() {
           semester_end: f.semester_end || null,
           min_attendance_pct: pct,
           timezone: f.timezone.trim() || "Asia/Kolkata",
+          max_session_minutes: Math.round(maxH * 60),
         })
         .eq("id", true);
       if (error) throw error;
@@ -899,6 +964,18 @@ function InstitutionTab() {
         </div>
         <div className="w-40">
           {field("min_attendance_pct", "Minimum (%)", { type: "number", min: 0, max: 100 })}
+        </div>
+      </section>
+      <section className="space-y-4 border-t border-border pt-6">
+        <div>
+          <h2 className="text-base">Session limit</h2>
+          <p className="text-xs text-muted-foreground">
+            Sessions longer than this are capped and flagged. Anyone who forgets to check out is
+            closed automatically at this limit.
+          </p>
+        </div>
+        <div className="w-40">
+          {field("max_session_hours", "Hours", { type: "number", min: 0.5, max: 24, step: 0.5 })}
         </div>
       </section>
       <Button onClick={() => save.mutate()} disabled={save.isPending}>

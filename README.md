@@ -17,6 +17,10 @@
 - ✅ **Faculty Approvals:** Faculty review, approve, or reject sessions and submitted files with custom remarks.
 - 📊 **Automated Attendance:** Calculate total verified research hours and generate percentage reports.
 - 🔐 **Role-Based Security:** Secure Row-Level Security (RLS) policies for **Student**, **Faculty**, and **Head Admin** roles.
+- 📍 **Presence Verification:** Rotating 30-second lab code (QR + 6 digits) shown on a lab screen, lab geofences, and review flags (no code, off-site, weak GPS, auto-closed). Wrong codes are throttled server-side.
+- 🕒 **Time Corrections:** Students request a corrected check-out time (forgotten or auto-closed sessions); faculty accept or decline it in the review queue before verifying.
+- 🟢 **Live Lab Roster:** Supervisors see who is checked in right now, with presence evidence, on the dashboard, event page and lab screen.
+- 🗓️ **Leave & Certificates:** Leave requests excuse scheduled lab hours; supervisors issue attendance certificates verifiable at `/verify/<code>`.
 
 ---
 
@@ -58,7 +62,7 @@
 ## 📂 Project Architecture & Directory Structure
 
 ```text
-research-connect-main/
+ravs/
 ├── docs/                             # Comprehensive Documentation Guides
 │   ├── SUPABASE_GUIDE.md             # Supabase Schema, RLS & CLI setup
 │   └── SUPABASE_SMTP_RATE_LIMITS.md  # Resend SMTP & Auth Rate Limit Guide
@@ -74,7 +78,11 @@ research-connect-main/
 │   │   │   ├── projects.$id.tsx      # Project Workspace & Timer
 │   │   │   ├── approvals.tsx         # Faculty Review Queue
 │   │   │   ├── attendance.tsx        # Attendance Analytics & Reports
+│   │   │   ├── checkin.tsx           # QR check-in landing page
 │   │   │   └── profile.tsx           # User Profile Settings
+│   │   ├── presence.$id.tsx          # Full-screen lab check-in code (supervisors)
+│   │   ├── verify.$code.tsx          # Public certificate verification
+│   │   ├── reset-password.tsx        # Password reset
 │   │   ├── auth.tsx                  # Sign In / Sign Up
 │   │   └── __root.tsx                # App Shell Layout
 │   ├── main.tsx                      # Vite Application Entrypoint
@@ -102,8 +110,8 @@ Clone the repository and install dependencies:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/research-connect.git
-cd research-connect-main
+git clone https://github.com/khushi-070906/ravs.git
+cd ravs
 
 # Install dependencies
 npm install
@@ -146,6 +154,14 @@ npx supabase link --project-ref your_supabase_project_id
 # Push database schema migrations
 npx supabase db push
 ```
+
+Migrations must be applied in order and **before** deploying a frontend that depends on them (e.g. the lab-screen countdown needs `presence_code().server_now` from `20260929000000_presence_hardening.sql`). For the auto-close job, enable `pg_cron` under Dashboard → Database → Extensions first; without it, stale sessions close on the student's next check-in.
+
+---
+
+## 🚀 Deployment (Netlify)
+
+`netlify.toml` builds with `npm run build` and publishes `dist/` as a single-page app. Set `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` and `VITE_SUPABASE_PROJECT_ID` under Site configuration → Environment variables. Don't commit `.netlify/` or `dist/`.
 
 ---
 

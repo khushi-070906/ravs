@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Expand, FlaskConical, RefreshCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { checkInUrl } from "@/lib/presence";
+import { useLiveSessions } from "@/components/live-roster";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/presence/$id")({
@@ -49,26 +50,42 @@ function PresenceScreen() {
     refetch,
   } = useQuery({
     queryKey: ["presence-code", id],
-    retry: false,
+    // A lab screen runs all day: ride out network blips instead of dying on
+    // the first failed request. Permission errors are not worth retrying.
+    retry: (n, e) => n < 5 && !/supervisors/i.test((e as Error).message),
+    retryDelay: (n) => Math.min(1000 * 2 ** n, 10_000),
     refetchOnWindowFocus: true,
+    // safety net in case a scheduled refresh is ever missed
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: true,
     queryFn: async () => {
+      const sent = Date.now();
       const { data, error } = await supabase.rpc("presence_code", { p_project: id });
       if (error) throw error;
-      return data?.[0] ?? null;
+      const row = data?.[0];
+      if (!row) return null;
+      // Kiosk clocks drift. Measure the offset to the server clock (midpoint
+      // of the round trip) so the countdown and refresh follow the server.
+      const received = Date.now();
+      const offset = row.server_now
+        ? new Date(row.server_now).getTime() - (sent + received) / 2
+        : 0;
+      return { ...row, offset };
     },
   });
 
+  const offset = current?.offset ?? 0;
   const expiresAt = current ? new Date(current.expires_at).getTime() : 0;
   const period = (current?.period_s ?? 30) * 1000;
-  const left = Math.max(0, expiresAt - now);
+  const left = Math.max(0, expiresAt - (now + offset));
 
-  // fetch the next code the moment the current window ends
+  // fetch the next code the moment the current window ends (server time)
   useEffect(() => {
     if (!current) return;
-    const wait = Math.max(0, expiresAt - Date.now()) + 150;
+    const wait = Math.max(0, expiresAt - (Date.now() + offset)) + 250;
     const t = setTimeout(() => void refetch(), wait);
     return () => clearTimeout(t);
-  }, [current, expiresAt, refetch]);
+  }, [current, expiresAt, offset, refetch]);
 
   useEffect(() => {
     if (!current?.code) return;
@@ -78,6 +95,9 @@ function PresenceScreen() {
       errorCorrectionLevel: "M",
     }).then(setQr, () => setQr(null));
   }, [current?.code, id]);
+
+  const { data: live } = useLiveSessions(id, !error);
+  const liveCount = live?.length ?? 0;
 
   const rotate = useMutation({
     mutationFn: async () => {
@@ -91,7 +111,11 @@ function PresenceScreen() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (error) {
+  // Only give up the screen when there's nothing to show (e.g. not a
+  // supervisor). A failed refresh keeps the last code up with a warning.
+  const stale = !!error && !!current && left === 0;
+
+  if (error && !current) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-6 text-center">
         <p className="max-w-sm text-sm text-muted-foreground">{(error as Error).message}</p>
@@ -172,8 +196,15 @@ function PresenceScreen() {
               style={{ width: `${Math.min(100, (left / period) * 100)}%` }}
             />
           </div>
+          <p className="tnum mt-6 text-sm text-sidebar-foreground/70" aria-live="polite">
+            {liveCount === 0
+              ? "Nobody checked in yet"
+              : `${liveCount} ${liveCount === 1 ? "person" : "people"} checked in`}
+          </p>
           <p className="tnum mt-2 text-xs text-sidebar-foreground/60">
-            New code in {Math.ceil(left / 1000)}s
+            {stale
+              ? "Reconnecting… this code may have expired"
+              : `New code in ${Math.ceil(left / 1000)}s`}
           </p>
         </div>
       </main>
