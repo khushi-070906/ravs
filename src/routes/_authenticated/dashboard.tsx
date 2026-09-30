@@ -18,6 +18,7 @@ import { useRecommendations } from "@/lib/institution";
 import { hoursFrom, startOfWeek } from "@/lib/session-utils";
 import { Button } from "@/components/ui/button";
 import { LiveRoster } from "@/components/live-roster";
+import { LogHoursDialog, ManualEntryStatus } from "@/components/manual-entry";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -131,13 +132,20 @@ function StudentView() {
         <section>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl">Research log</h2>
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/attendance">Full record</Link>
-            </Button>
+            <div className="flex items-center gap-1">
+              <LogHoursDialog />
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/attendance">Full record</Link>
+              </Button>
+            </div>
           </div>
           <ResearchLog
             sessions={done.slice(0, 6)}
             empty="Your checked-out sessions will appear here as dated log entries."
+            renderActions={(s) => {
+              const full = done.find((x) => x.id === s.id);
+              return full ? <ManualEntryStatus session={full} /> : null;
+            }}
           />
         </section>
 
