@@ -73,6 +73,10 @@ export const FLAG_INFO: Record<string, { label: string; detail: string }> = {
     label: "Auto-closed",
     detail: "Student never checked out; closed automatically at the limit.",
   },
+  manual_entry: {
+    label: "Manual entry",
+    detail: "Hours reported by the student without the timer",
+  },
 };
 
 export function flagLabel(f: string) {
