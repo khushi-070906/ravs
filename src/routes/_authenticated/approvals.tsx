@@ -13,6 +13,7 @@ import { PageHeader, StatusBadge } from "@/components/research";
 import { FlagBadges, PresenceLine } from "@/components/presence-flags";
 import { CorrectionReview } from "@/components/time-correction";
 import { ConfirmedBadge } from "@/components/live-roster";
+import { ManualEntryReview } from "@/components/manual-entry";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -51,8 +52,12 @@ function Approvals() {
         .order("submitted_at", { ascending: true });
       if (error) throw error;
       const rows = await attachStudentNames(data ?? []);
-      // names of supervisors who confirmed presence in person
-      const ids = [...new Set(rows.map((r) => r.present_confirmed_by).filter(Boolean))] as string[];
+      // names of supervisors who confirmed presence in person, or were named on a manual entry
+      const ids = [
+        ...new Set(
+          rows.flatMap((r) => [r.present_confirmed_by, r.claimed_supervisor_id]).filter(Boolean),
+        ),
+      ] as string[];
       const { data: people } = ids.length
         ? await supabase.from("profiles").select("id, full_name").in("id", ids)
         : { data: [] as { id: string; full_name: string | null }[] };
@@ -61,6 +66,9 @@ function Approvals() {
         ...r,
         confirmed_by_name: r.present_confirmed_by
           ? (nameOf.get(r.present_confirmed_by) ?? null)
+          : null,
+        claimed_supervisor_name: r.claimed_supervisor_id
+          ? (nameOf.get(r.claimed_supervisor_id) ?? null)
           : null,
       }));
     },
@@ -145,6 +153,9 @@ function Approvals() {
   const pickedMins = shown
     .filter((x) => selected.has(x.id))
     .reduce((a, x) => a + (x.duration_minutes ?? 0), 0);
+  // bulk "unflagged" never picks manual entries: they need a one-by-one read
+  const unflagged = (x: (typeof all)[number]) =>
+    (x.flags ?? []).length === 0 && x.correction_status !== "pending" && x.entry_type !== "manual";
   const waitedDays = (d: string | null) =>
     d ? Math.floor((Date.now() - new Date(d).getTime()) / 86400000) : 0;
 
@@ -234,26 +245,9 @@ function Approvals() {
                 </label>
                 <button
                   className="text-muted-foreground hover:text-foreground hover:underline"
-                  onClick={() =>
-                    setSelected(
-                      new Set(
-                        shown
-                          .filter(
-                            (x) =>
-                              (x.flags ?? []).length === 0 && x.correction_status !== "pending",
-                          )
-                          .map((x) => x.id),
-                      ),
-                    )
-                  }
+                  onClick={() => setSelected(new Set(shown.filter(unflagged).map((x) => x.id)))}
                 >
-                  Select unflagged (
-                  {
-                    shown.filter(
-                      (x) => (x.flags ?? []).length === 0 && x.correction_status !== "pending",
-                    ).length
-                  }
-                  )
+                  Select unflagged ({shown.filter(unflagged).length})
                 </button>
                 <button
                   className="text-muted-foreground hover:text-foreground hover:underline"
@@ -399,6 +393,11 @@ function Approvals() {
                       <FlagBadges flags={s.flags} />
                       <PresenceLine s={s} />
                     </div>
+                    <ManualEntryReview
+                      session={s}
+                      supervisorName={s.claimed_supervisor_name}
+                      isYou={s.claimed_supervisor_id === user?.id}
+                    />
                     <CorrectionReview
                       session={s}
                       remark={remarks[s.id] ?? ""}
