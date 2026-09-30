@@ -24,6 +24,7 @@ import {
   FixTimeDialog,
   canRequestCorrection,
 } from "@/components/time-correction";
+import { ManualEntryStatus } from "@/components/manual-entry";
 import { flagLabel } from "@/lib/presence";
 import { Input } from "@/components/ui/input";
 import {
@@ -75,9 +76,23 @@ function Attendance() {
       const { data: sessions, error } = await query.order("check_in_at", { ascending: false });
       if (error) throw error;
 
+      // supervisors students named on manual entries
+      const supIds = [
+        ...new Set((sessions ?? []).map((x) => x.claimed_supervisor_id).filter(Boolean)),
+      ] as string[];
+      const { data: sups } = supIds.length
+        ? await supabase.from("profiles").select("id, full_name").in("id", supIds)
+        : { data: [] as { id: string; full_name: string | null }[] };
+      const supName = new Map((sups ?? []).map((p) => [p.id, p.full_name]));
+
       return {
         projects: projects ?? [],
-        sessions: await attachStudentNames(sessions ?? []),
+        sessions: (await attachStudentNames(sessions ?? [])).map((x) => ({
+          ...x,
+          claimed_supervisor_name: x.claimed_supervisor_id
+            ? (supName.get(x.claimed_supervisor_id) ?? "")
+            : "",
+        })),
       };
     },
   });
@@ -133,6 +148,8 @@ function Attendance() {
         "Distance in (m)",
         "Distance out (m)",
         "Supervisor confirmed at",
+        "Entry type",
+        "Named supervisor",
         "Flags",
         "Summary",
         "Reviewer remark",
@@ -149,6 +166,8 @@ function Attendance() {
         s.check_in_distance_m ?? "",
         s.check_out_distance_m ?? "",
         s.present_confirmed_at ? new Date(s.present_confirmed_at).toLocaleString() : "",
+        s.entry_type === "manual" ? "manual" : "timer",
+        s.claimed_supervisor_name,
         (s.flags ?? []).map(flagLabel).join("; "),
         s.summary ?? "",
         s.remarks ?? "",
@@ -435,6 +454,7 @@ function Attendance() {
                       )}
                       <FlagBadges flags={s.flags} className="mt-1.5 max-w-[14rem]" />
                       <CorrectionStatus session={s} />
+                      {!isStaff && <ManualEntryStatus session={s} showBadge={false} />}
                       {!isStaff && canRequestCorrection(s) && (
                         <div className="mt-1.5">
                           <FixTimeDialog session={s} />
