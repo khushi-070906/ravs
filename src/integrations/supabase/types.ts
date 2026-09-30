@@ -465,6 +465,8 @@ export type Database = {
           correction_resolved_by: string | null;
           present_confirmed_by: string | null;
           present_confirmed_at: string | null;
+          entry_type: string;
+          claimed_supervisor_id: string | null;
         };
         Insert: {
           check_in_at?: string;
@@ -499,6 +501,8 @@ export type Database = {
           correction_resolved_by?: string | null;
           present_confirmed_by?: string | null;
           present_confirmed_at?: string | null;
+          entry_type?: string;
+          claimed_supervisor_id?: string | null;
         };
         Update: {
           check_in_at?: string;
@@ -533,6 +537,8 @@ export type Database = {
           correction_resolved_by?: string | null;
           present_confirmed_by?: string | null;
           present_confirmed_at?: string | null;
+          entry_type?: string;
+          claimed_supervisor_id?: string | null;
         };
         Relationships: [
           {
@@ -614,6 +620,20 @@ export type Database = {
         Returns: Database["public"]["Tables"]["work_sessions"]["Row"];
       };
       withdraw_time_correction: {
+        Args: { p_session: string };
+        Returns: undefined;
+      };
+      log_manual_session: {
+        Args: {
+          p_project: string;
+          p_supervisor: string;
+          p_start: string;
+          p_end: string;
+          p_summary: string;
+        };
+        Returns: Database["public"]["Tables"]["work_sessions"]["Row"];
+      };
+      withdraw_manual_session: {
         Args: { p_session: string };
         Returns: undefined;
       };
